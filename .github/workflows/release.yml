@@ -1,0 +1,69 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: New release tag (for example v1.0.0)
+        required: true
+        type: string
+      prerelease:
+        description: Mark as a prerelease
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      PRERELEASE: ${{ inputs.prerelease }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Validate new release tag
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]] || {
+            echo 'Use a version tag such as v1.0.0 or v1.0.0-beta.1' >&2
+            exit 1
+          }
+          gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG" > "$RUNNER_TEMP/tag-refs.json"
+          if jq --exit-status --arg ref "refs/tags/$RELEASE_TAG" 'any(.[]; .ref == $ref)' "$RUNNER_TEMP/tag-refs.json" >/dev/null; then
+            echo "Tag $RELEASE_TAG already exists; choose a new version" >&2
+            exit 1
+          fi
+      - uses: ./.github/actions/setup-sdk
+      - name: Test and build debug and release payloads
+        run: bash tools/build.sh
+      - name: Publish payloads to GitHub Releases
+        run: |
+          set -euo pipefail
+          flags=()
+          if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); fi
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          YAPI PS5 package installer payload. Load the ELF with a compatible PS5 ELF loader.
+
+          - `yapi-release.elf`: optimized payload with logging disabled and debug/static symbols stripped.
+          - `yapi-debug.elf`: optimized payload with DWARF debug information, static symbols, klog output and lifecycle notifications.
+          - `SHA256SUMS.txt`: checksums for both payloads.
+
+          Both variants passed the host stream/control tests and ELF symbol checks before publication. Built with ps5-payload-dev SDK v0.44 and LLVM 18. Host tests mock PS5 APIs; this workflow does not validate installation on a real console.
+          NOTES
+          gh release create "$RELEASE_TAG" \
+            dist/yapi-debug.elf dist/yapi-release.elf dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "YAPI $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "${flags[@]}"

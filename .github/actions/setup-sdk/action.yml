@@ -1,0 +1,23 @@
+name: Set up PS5 payload SDK
+description: Install LLVM 18 and the checksum-verified PS5 payload SDK v0.44.
+runs:
+  using: composite
+  steps:
+    - name: Install build dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y clang-18 lld-18 llvm-18 make curl unzip
+    - name: Install PS5 payload SDK v0.44
+      shell: bash
+      run: |
+        set -euo pipefail
+        archive="$RUNNER_TEMP/ps5-payload-sdk.zip"
+        curl --fail --location --retry 3 \
+          https://github.com/ps5-payload-dev/sdk/releases/download/v0.44/ps5-payload-sdk.zip \
+          --output "$archive"
+        echo "4d06eab777bb135705b5a6816688c9132efb246093fe606ac488ab6cf65ca5b0  $archive" | sha256sum --check
+        unzip -q "$archive" -d "$RUNNER_TEMP/yapi-sdk"
+        echo "PS5_PAYLOAD_SDK=$RUNNER_TEMP/yapi-sdk/ps5-payload-sdk" >> "$GITHUB_ENV"
+        echo "LLVM_CONFIG=/usr/bin/llvm-config-18" >> "$GITHUB_ENV"

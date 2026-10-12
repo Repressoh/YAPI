@@ -1,0 +1,5 @@
+* text=auto
+*.c text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+Makefile text eol=lf

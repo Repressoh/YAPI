@@ -32,20 +32,6 @@ This produces `dist/yapi-debug.elf`, `dist/yapi-release.elf`, and `dist/SHA256SU
 The script uses LLVM 18 by default; set `HOSTCC` and `LLVM_READOBJ` for another version.
 The host tests mock PS5 APIs and do not replace testing on a real console.
 
-## GitHub builds and releases
-
-The **Build and test** workflow runs for pushes to `main`, pull requests, and manual
-checks. It tests both build modes, compiles both payloads, and verifies their symbol
-policy. CI uses the checksum-verified ps5-payload-dev SDK **v0.44** and LLVM **18**.
-
-To publish a release, open **Actions → Publish release → Run workflow**, select
-`main`, and enter a new version tag such as `v1.0.0`. The workflow runs all checks
-again and uploads both payloads and their checksums directly to GitHub Releases.
-It accepts an optional prerelease flag and refuses to overwrite existing tags.
-
-No workflow uploads Actions artifacts. Pushes, pull requests, and manual CI checks
-do not save payload builds; only manually dispatched release runs publish them.
-
 ## Control protocol
 
 TCP port **54309** accepts one command per connection, terminated by a newline:
@@ -69,12 +55,6 @@ Package URLs may be at most 4095 ASCII characters and must use `http://` or `htt
 The reply is `0\n` when AppInstUtil accepts the submission, or its nonzero signed
 decimal error code. Malformed commands receive `-1\n`. Acceptance means that
 the install was submitted, not that the asynchronous download completed.
-
-Every install command creates a new submission, including identical commands.
-There is no duplicate detection, version field, special retry command or
-accepted-request history. After a lost reply, check Downloads before submitting
-again. Clients should only repeat an uncertain submission after user action.
-Plain URL commands and the former version-based protocol are unsupported.
 
 ## Contributing
 
